@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>座位绑定串音对消 · 试听原型</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --card: #fffdf8;
+      --ink: #1c1a16;
+      --muted: #5c564c;
+      --line: #e2dbd0;
+      --driver: #1f4e8c;
+      --pax: #9a4a12;
+      --good: #2d6a4f;
+      --warn: #8a5a00;
+      --chip: #efe8dc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(1200px 500px at 10% -10%, #e8efe9 0%, transparent 50%),
+                  radial-gradient(900px 400px at 100% 0%, #e6ebf4 0%, transparent 45%),
+                  var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    header {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 24px 8px;
+    }
+    h1 { font-size: 1.55rem; font-weight: 650; margin: 0 0 8px; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin: 0 0 12px; max-width: 46rem; }
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+    .pill {
+      background: var(--chip);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 16px 24px 64px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px 22px;
+      margin: 16px 0;
+      box-shadow: 0 1px 0 rgba(28,26,22,0.03);
+    }
+    label.field { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    select {
+      width: 100%;
+      max-width: 520px;
+      font: inherit;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+    .meta { margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+    .player {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px 12px;
+      background: #fff;
+    }
+    .player h3 {
+      margin: 0 0 4px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    .player .hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+    .player.driver { border-top: 3px solid var(--driver); }
+    .player.pax { border-top: 3px solid var(--pax); }
+    .player.out h3 { color: var(--good); }
+    audio { width: 100%; height: 36px; }
+    .assume, .eval, .limits {
+      font-size: 13.5px;
+      color: var(--ink);
+    }
+    .assume { background: #fbf3e0; border-color: #ead9b0; }
+    .eval h2, .limits h2, .api h2, .pf-card h2 { font-size: 15px; margin: 0 0 8px; }
+    ul { margin: 6px 0 0 1.1em; padding: 0; }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+    pre {
+      background: #1c1a16;
+      color: #f4f1ea;
+      border-radius: 10px;
+      padding: 12px 14px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .err { color: #8b1e1e; background: #fdecec; border: 1px solid #f0c8c8; padding: 10px 12px; border-radius: 10px; }
+    a { color: var(--driver); }
+    .pf-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .pf-row h2 { margin: 0; }
+    #pf-val {
+      font-variant-numeric: tabular-nums;
+      font-weight: 650;
+      color: var(--good);
+      font-size: 15px;
+    }
+    #pf-val.suggested { color: var(--good); }
+    input[type="range"]#pf {
+      width: 100%;
+      accent-color: var(--good);
+      margin: 6px 0 4px;
+    }
+    .pf-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .pf-hint { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+    .gsc-toggle {
+      display: flex; align-items: center; gap: 8px;
+      margin: 12px 0 0; font-size: 13px; color: var(--text); cursor: pointer;
+    }
+    .gsc-toggle input { width: 16px; height: 16px; accent-color: var(--accent, #1f4e79); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>座位绑定串音对消 · 试听原型</h1>
+    <p class="sub">
+      两路成对处理：主驾输出保留主驾、减轻副驾串音；副驾输出相反。
+      算法是评测推荐的因果 STFT 域 GSC（从零自适应）+ 空间门控，再加一层可调的残差后置抑制，不用声纹。
+      这是文件/会话演示，不是实时麦采集。
+    </p>
+    <div class="pills">
+      <span class="pill">16 kHz</span>
+      <span class="pill" id="pill-win">窗长 256 · hop 64</span>
+      <span class="pill" id="pill-delay">算法延迟 16 ms</span>
+      <span class="pill">GSC 从零 + 空间门控</span>
+      <span class="pill">残差后置抑制</span>
+      <span class="pill">v1.3 文件演示</span>
+    </div>
+  </header>
+  <main>
+    <section class="card assume">
+      <strong>采样率假设。</strong>
+      实采 <span class="mono">mic_raw.pcm</span> / <span class="mono">mic2_raw.pcm</span> 没有文件头，也没有采样率标注。
+      本页与评测一致，一律按 <strong>16 kHz、16-bit little-endian、单声道</strong> 解读。
+      若实际不是 16 kHz，时间和听感都不能直接沿用。
+    </section>
+
+    <section class="card">
+      <label class="field" for="session">选择实采片段（共 15 段）</label>
+      <select id="session" disabled>
+        <option>正在加载…</option>
+      </select>
+      <div class="meta" id="session-meta"></div>
+    </section>
+
+    <section class="card pf-card">
+      <div class="pf-row">
+        <h2>动态后置抑制</h2>
+        <span id="pf-val">1.00（建议）</span>
+      </div>
+      <input type="range" id="pf" min="0" max="100" step="1" value="100" disabled
+             list="pf-marks" aria-label="动态强度" />
+      <datalist id="pf-marks">
+        <option value="0" label="0 固定 0.80"></option>
+        <option value="100" label="建议 1.00"></option>
+      </datalist>
+      <div class="pf-scale">
+        <span>0 · 固定后置 0.80</span>
+        <span>建议 1.00</span>
+      </div>
+      <label class="gsc-toggle" for="gsc-only">
+        <input type="checkbox" id="gsc-only" />
+        只做 GSC（关掉后置，用来对照）
+      </label>
+      <p class="pf-hint">
+        这一条滑杆是<strong>动态强度 β</strong>，不是以前那条固定 λ。
+        β=0：整段都用固定后置 0.80（当前基线）。
+        β 越大：只在「对侧座位空间上正在说话」时把抑制往上加（最高到 1.0）；两边叠说时有上限，会往 0.60 收回，避免把本路压掉；本路单说时保持 0.80。
+        控制量用 ILD、到达时差和 GSC 阻塞支路能量，<strong>不是对侧原麦音量</strong>。
+        建议默认 <strong>1.00</strong>（单说平均 CTA 约 14.93 dB，比固定 0.80 多约 1.6 dB，本路几乎不变）。
+        拖动后立刻作用于两路输出，不会重跑 GSC。
+      </p>
+    </section>
+
+    <section class="grid" id="players">
+      <div class="player driver">
+        <h3>主驾原麦</h3>
+        <p class="hint">mic_raw · 对消前</p>
+        <audio id="a-mic-raw" controls preload="metadata"></audio>
+      </div>
+      <div class="player driver out">
+        <h3>主驾输出</h3>
+        <p class="hint">对消后 · 绑主驾座位 · 含当前后置抑制</p>
+        <audio id="a-driver-out" controls preload="metadata"></audio>
+      </div>
+      <div class="player pax">
+        <h3>副驾原麦</h3>
+        <p class="hint">mic2_raw · 对消前</p>
+        <audio id="a-mic2-raw" controls preload="metadata"></audio>
+      </div>
+      <div class="player pax out">
+        <h3>副驾输出</h3>
+        <p class="hint">对消后 · 绑副驾座位 · 含当前后置抑制</p>
+        <audio id="a-passenger-out" controls preload="metadata"></audio>
+      </div>
+    </section>
+    <p class="meta">建议先听「只主驾说 / 只副驾说」：对侧输出应比固定 0.80（滑杆拖到 0）更干净，本路应几乎不变。勾选「只做 GSC」可听关掉后置的对照。再听「两人」段：交替时对侧会再下来一些，重叠时对侧残留仍听得见，本路不应被额外打伤。</p>
+
+    <section class="card eval">
+      <h2>评测结论（摘自 RESULT-dynamic-postfilter.md，不是本页现场测量）</h2>
+      <ul>
+        <li>窗长仍是 <strong>N=256、hop=64</strong>，算法时延 <strong>16 ms</strong>。后置改为动态：默认 <strong>β=1.00</strong>。β=0 即原来的固定 λ=0.80。</li>
+        <li>默认档单说 10 段平均 CTA 约 <strong>14.93 dB</strong>，比固定 0.80 的 13.33 dB 多约 <strong>1.6 dB</strong>。本路能量比约 −0.12 dB、相关约 0.997、LSD 约 0.96，与固定 0.80 几乎相同。交替区 CTA 约 10.7 / 13.0 dB。</li>
+        <li>这比把 λ 全局拧到 0.90 或 1.00 更划算：固定 0.90 的 CTA 还略低（14.53），LSD 已经升高；固定 1.00 虽然 CTA 到 15.82，但 LSD 和音乐噪声线索越出门槛。动态方案只在对侧占优时加力，叠说有 0.60 上限。</li>
+        <li>预期仍要收在「再减轻一截串音」，不是「把对侧抹掉」。重叠区没有干净参考。这批没有扬声器，回声消除尚未验证。</li>
+      </ul>
+    </section>
+
+    <section class="card limits">
+      <h2>v1.3 限制</h2>
+      <ul>
+        <li>不是实时麦克风流，只对已有录音或上传的完整文件做对消。</li>
+        <li>在线路径从 H=0 自适应，短段会包含收敛过程；阻塞矩阵 RTF 用这批单说段估计（与评测相同）。换车、换麦、头位大动后需要重新适应，不能一次标定冻住。</li>
+        <li>后置抑制是因果残差 Wiener，强度随对侧座位的空间活动估计变化。滑杆只混合预先算好的「固定 0.80」和「动态增量」，不重跑 GSC。</li>
+        <li>这批实采几乎没有扬声器回放，回声消除尚未验证。</li>
+        <li>未接转写 / ASR，不能在本页点名「串了哪些词」。</li>
+      </ul>
+    </section>
+
+    <section class="card api">
+      <h2>HTTP API</h2>
+      <p>把两路单声道 wav 或无头 pcm 成对 POST 上来，返回一个 zip（<span class="mono">driver_out.wav</span>、<span class="mono">passenger_out.wav</span>、<span class="mono">info.json</span>，以及 GSC / 固定 0.80 / 动态增量对照 wav）。采样率必须是 16 kHz；pcm 按 16-bit LE 解读。主参数是表单字段或查询参数 <span class="mono">beta</span>（0–1，默认 1.00；0=固定 λ=0.80）。旧参数 <span class="mono">strength</span> 仍表示固定 λ（0=只做 GSC）。</p>
+      <pre>curl -sS -X POST http://127.0.0.1:8766/api/cancel \
+  -F "mic_driver=@mic_raw.wav" \
+  -F "mic_passenger=@mic2_raw.wav" \
+  -F "beta=1.00" \
+  -o cancel_out.zip</pre>
+      <p class="meta">也可以用字段名 <span class="mono">mic_raw</span> / <span class="mono">mic2_raw</span>。健康检查：<span class="mono">GET /api/health</span>。片段列表：<span class="mono">GET /api/sessions</span>。书面结论：<a href="/RESULT-dynamic-postfilter.md">RESULT-dynamic-postfilter.md</a>（动态后置）、<a href="/RESULT-window.md">RESULT-window.md</a>（窗长）、<a href="/RESULT-postfilter.md">RESULT-postfilter.md</a>（固定后置强度）。</p>
+    </section>
+    <div id="boot-error" hidden class="err"></div>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const players = {
+      mic_raw: $("a-mic-raw"),
+      mic2_raw: $("a-mic2-raw"),
+      driver_out: $("a-driver-out"),
+      passenger_out: $("a-passenger-out"),
+    };
+    let sessions = [];
+    let defaultBeta = 1.00;
+    let beta = 1.00;
+    let gscOnly = false;
+    let mixBuf = {
+      driver_gsc: null, passenger_gsc: null,
+      driver_base: null, passenger_base: null,
+      driver_exc: null, passenger_exc: null,
+      sr: 16000,
+    };
+    let objectUrls = [];
+    let mixToken = 0;
+
+    function revokeUrls() {
+      for (const u of objectUrls) URL.revokeObjectURL(u);
+      objectUrls = [];
+    }
+
+    function setStrengthLabel() {
+      if (gscOnly) {
+        $("pf-val").textContent = "只做 GSC";
+        $("pf-val").classList.remove("suggested");
+        return;
+      }
+      const v = beta.toFixed(2);
+      const suggested = Math.abs(beta - defaultBeta) < 0.005;
+      $("pf-val").textContent = suggested ? (v + "（建议）") : (v + (Math.abs(beta) < 0.005 ? " · 固定 0.80" : ""));
+      $("pf-val").classList.toggle("suggested", suggested);
+    }
+
+    function parseWav(ab) {
+      const v = new DataView(ab);
+      if (v.byteLength < 12 || String.fromCharCode(v.getUint8(0), v.getUint8(1), v.getUint8(2), v.getUint8(3)) !== "RIFF") {
+        throw new Error("不是 WAV");
+      }
+      let offset = 12;
+      let sr = 16000;
+      let bits = 16;
+      let ch = 1;
+      let samples = null;
+      while (offset + 8 <= v.byteLength) {
+        const id = String.fromCharCode(v.getUint8(offset), v.getUint8(offset+1), v.getUint8(offset+2), v.getUint8(offset+3));
+        const size = v.getUint32(offset + 4, true);
+        const start = offset + 8;
+        if (id === "fmt ") {
+          ch = v.getUint16(start + 2, true);
+          sr = v.getUint32(start + 4, true);
+          bits = v.getUint16(start + 14, true);
+        } else if (id === "data") {
+          if (bits !== 16) throw new Error("只支持 16-bit WAV");
+          const n = Math.floor(size / 2);
+          const mono = new Float32Array(Math.floor(n / ch));
+          for (let i = 0; i < mono.length; i++) {
+            // first channel if stereo
+            mono[i] = v.getInt16(start + (i * ch) * 2, true) / 32768;
+          }
+          samples = mono;
+        }
+        offset = start + size + (size % 2);
+      }
+      if (!samples) throw new Error("WAV 里没有 data 块");
+      return { samples, sr };
+    }
+
+    function mixToWavBlob(a, b, w, sr) {
+      /* y = a + w * b  (base + β * exc), or y = a when used as GSC passthrough with b=0 */
+      const n = Math.min(a.length, b ? b.length : a.length);
+      const out = new Int16Array(n);
+      for (let i = 0; i < n; i++) {
+        let x = a[i] + (b ? w * b[i] : 0);
+        if (x > 1) x = 1;
+        else if (x < -1) x = -1;
+        out[i] = x < 0 ? Math.round(x * 32768) : Math.round(x * 32767);
+        if (out[i] > 32767) out[i] = 32767;
+        if (out[i] < -32768) out[i] = -32768;
+      }
+      const buf = new ArrayBuffer(44 + n * 2);
+      const v = new DataView(buf);
+      const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+      writeStr(0, "RIFF");
+      v.setUint32(4, 36 + n * 2, true);
+      writeStr(8, "WAVE");
+      writeStr(12, "fmt ");
+      v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true);
+      v.setUint16(22, 1, true);
+      v.setUint32(24, sr, true);
+      v.setUint32(28, sr * 2, true);
+      v.setUint16(32, 2, true);
+      v.setUint16(34, 16, true);
+      writeStr(36, "data");
+      v.setUint32(40, n * 2, true);
+      new Uint8Array(buf, 44).set(new Uint8Array(out.buffer, out.byteOffset, out.byteLength));
+      return new Blob([buf], { type: "audio/wav" });
+    }
+
+    function applyMix() {
+      if (!mixBuf.driver_gsc || !mixBuf.driver_base || !mixBuf.driver_exc) return;
+      if (!mixBuf.passenger_gsc || !mixBuf.passenger_base || !mixBuf.passenger_exc) return;
+      const token = ++mixToken;
+      const sr = mixBuf.sr || 16000;
+      const zeros = null;
+      const drvBlob = gscOnly
+        ? mixToWavBlob(mixBuf.driver_gsc, zeros, 0, sr)
+        : mixToWavBlob(mixBuf.driver_base, mixBuf.driver_exc, beta, sr);
+      const paxBlob = gscOnly
+        ? mixToWavBlob(mixBuf.passenger_gsc, zeros, 0, sr)
+        : mixToWavBlob(mixBuf.passenger_base, mixBuf.passenger_exc, beta, sr);
+      if (token !== mixToken) return;
+      const drvUrl = URL.createObjectURL(drvBlob);
+      const paxUrl = URL.createObjectURL(paxBlob);
+      objectUrls.push(drvUrl, paxUrl);
+      const keep = objectUrls.slice(-2);
+      for (const u of objectUrls.slice(0, -2)) URL.revokeObjectURL(u);
+      objectUrls = keep;
+      for (const [el, url] of [[players.driver_out, drvUrl], [players.passenger_out, paxUrl]]) {
+        const t = el.currentTime || 0;
+        const playing = !el.paused && !el.ended && el.src;
+        el.src = url;
+        const restore = () => {
+          try { el.currentTime = t; } catch (e) {}
+          if (playing) {
+            const p = el.play();
+            if (p && p.catch) p.catch(() => {});
+          }
+        };
+        if (el.readyState >= 1) restore();
+        else el.addEventListener("loadedmetadata", restore, { once: true });
+      }
+    }
+
+    async function fetchWav(rel) {
+      const r = await fetch(encodeURI("/audio/" + rel));
+      if (!r.ok) throw new Error("无法加载 " + rel + "（HTTP " + r.status + "）");
+      return parseWav(await r.arrayBuffer());
+    }
+
+    async function loadSession(s) {
+      mixToken += 1;
+      const my = mixToken;
+      for (const el of Object.values(players)) {
+        el.pause();
+        el.removeAttribute("src");
+        el.load();
+      }
+      revokeUrls();
+      mixBuf = {
+        driver_gsc: null, passenger_gsc: null,
+        driver_base: null, passenger_base: null,
+        driver_exc: null, passenger_exc: null,
+        sr: 16000,
+      };
+      players.mic_raw.src = encodeURI("/audio/" + s.files.mic_raw);
+      players.mic2_raw.src = encodeURI("/audio/" + s.files.mic2_raw);
+      const labels = s.frame_labels || {};
+      const labStr = Object.entries(labels).map(([k, v]) => k + " " + v).join(" · ");
+      $("session-meta").textContent =
+        s.label + " · " + s.sid + " · " + s.duration_s.toFixed(2) + " s · 空间门控帧标签（本段）：" + (labStr || "—");
+      try {
+        const [dg, pg, db, pb, de, pe] = await Promise.all([
+          fetchWav(s.files.driver_out),
+          fetchWav(s.files.passenger_out),
+          fetchWav(s.files.driver_out_base),
+          fetchWav(s.files.passenger_out_base),
+          fetchWav(s.files.driver_out_exc),
+          fetchWav(s.files.passenger_out_exc),
+        ]);
+        if (my !== mixToken) return;
+        mixBuf.driver_gsc = dg.samples;
+        mixBuf.passenger_gsc = pg.samples;
+        mixBuf.driver_base = db.samples;
+        mixBuf.passenger_base = pb.samples;
+        mixBuf.driver_exc = de.samples;
+        mixBuf.passenger_exc = pe.samples;
+        mixBuf.sr = dg.sr || 16000;
+        applyMix();
+      } catch (err) {
+        if (my !== mixToken) return;
+        const box = $("boot-error");
+        box.hidden = false;
+        box.textContent = "无法加载对消音频：" + err.message;
+      }
+    }
+
+    const pf = $("pf");
+    pf.addEventListener("input", () => {
+      beta = Number(pf.value) / 100;
+      setStrengthLabel();
+      applyMix();
+    });
+    $("gsc-only").addEventListener("change", (ev) => {
+      gscOnly = !!ev.target.checked;
+      pf.disabled = gscOnly;
+      setStrengthLabel();
+      applyMix();
+    });
+
+    fetch("/api/sessions")
+      .then((r) => {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then((meta) => {
+        sessions = meta.sessions || [];
+        if (typeof meta.n_fft === "number") {
+          const hop = (typeof meta.hop === "number") ? meta.hop : Math.round(meta.n_fft / 4);
+          const winEl = $("pill-win");
+          if (winEl) winEl.textContent = "窗长 " + meta.n_fft + " · hop " + hop;
+        }
+        if (typeof meta.algo_delay_ms === "number") {
+          const delayEl = $("pill-delay");
+          if (delayEl) {
+            const ms = meta.algo_delay_ms;
+            const txt = (Math.abs(ms - Math.round(ms)) < 1e-6) ? String(Math.round(ms)) : ms.toFixed(1);
+            delayEl.textContent = "算法延迟 " + txt + " ms";
+          }
+        }
+        if (typeof meta.default_dynamic_beta === "number") {
+          defaultBeta = meta.default_dynamic_beta;
+        } else if (meta.postfilter && typeof meta.postfilter.default_dynamic_beta === "number") {
+          defaultBeta = meta.postfilter.default_dynamic_beta;
+        } else if (meta.eval && meta.eval.default_dynamic && typeof meta.eval.default_dynamic.beta === "number") {
+          defaultBeta = meta.eval.default_dynamic.beta;
+        }
+        beta = defaultBeta;
+        pf.value = String(Math.round(defaultBeta * 100));
+        pf.disabled = false;
+        setStrengthLabel();
+        const sel = $("session");
+        sel.innerHTML = "";
+        let lastCond = "";
+        for (const s of sessions) {
+          if (s.cond !== lastCond) {
+            const og = document.createElement("optgroup");
+            og.label = s.label + "（" + s.cond + "）";
+            og.id = "og-" + s.cond;
+            sel.appendChild(og);
+            lastCond = s.cond;
+          }
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.label + " · " + s.sid + "  (" + s.duration_s.toFixed(2) + " s)";
+          sel.lastChild.appendChild(opt);
+        }
+        sel.disabled = sessions.length === 0;
+        if (sessions.length) loadSession(sessions[0]);
+        sel.addEventListener("change", () => {
+          const s = sessions.find((x) => x.id === sel.value);
+          if (s) loadSession(s);
+        });
+      })
+      .catch((err) => {
+        const box = $("boot-error");
+        box.hidden = false;
+        box.textContent = "无法加载片段列表：" + err.message + "。请确认服务已启动，并且 15 段已预计算。";
+      });
+  </script>
+</body>
+</html>

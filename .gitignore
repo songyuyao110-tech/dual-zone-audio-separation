@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+cache/
+eval_pf_wav/
+eval_ref_wav/
+*.log
+RUNNING.txt
